@@ -127,54 +127,58 @@ class FilesController {
   }
 
   static async getIndex(req, res) {
-  const token = req.header('X-Token') || null;
-  if (!token) return res.status(401).send({ error: 'Unauthorized' });
+    const token = req.header('X-Token') || null;
+    if (!token) return res.status(401).send({ error: 'Unauthorized' });
 
-  const redisToken = await RedisClient.get(`auth_${token}`);
-  if (!redisToken) return res.status(401).send({ error: 'Unauthorized' });
+    const redisToken = await RedisClient.get(`auth_${token}`);
+    if (!redisToken) return res.status(401).send({ error: 'Unauthorized' });
 
-  const user = await DBClient.db
-    .collection('users')
-    .findOne({ _id: ObjectId(redisToken) });
-  if (!user) return res.status(401).send({ error: 'Unauthorized' });
+    const user = await DBClient.db
+      .collection('users')
+      .findOne({ _id: ObjectId(redisToken) });
+    if (!user) return res.status(401).send({ error: 'Unauthorized' });
 
-  // parentId defaults to '0' (root) if missing
-  const parentId = req.query.parentId || '0';
-  const page = parseInt(req.query.page, 10) || 0;
+  // parentId defaults to 0 if missing
+    const parentIdQuery = req.query.parentId;
+    const parentId = parentIdQuery === undefined || parentIdQuery === '0' ? 0 : parentIdQuery;
 
-  const matchQuery = { userId: user._id };
+  // page defaults to 0
+    let page = parseInt(req.query.page, 10);
+    if (Number.isNaN(page) || page < 0) page = 0;
 
-  if (parentId === '0') {
-    matchQuery.parentId = 0; // root files
-  } else {
-    try {
-      matchQuery.parentId = ObjectId(parentId); // child folder
-    } catch (err) {
-      return res.send([]); // invalid parentId
+    const matchQuery = { userId: user._id };
+    if (parentId !== 0) {
+      try {
+        matchQuery.parentId = ObjectId(parentId);
+      } catch (err) {
+      // invalid parentId, return empty
+        return res.send([]);
+      }
+    } else {
+      matchQuery.parentId = 0;
     }
-  }
 
-  const filesCursor = DBClient.db.collection('files').aggregate([
-    { $match: matchQuery },
-    { $skip: page * 20 },
-    { $limit: 20 },
-  ]);
+    const filesCursor = DBClient.db.collection('files').aggregate([
+      { $match: matchQuery },
+      { $skip: page * 20 },
+      { $limit: 20 },
+    ]);
 
-  const filesArray = [];
-  await filesCursor.forEach((item) => {
-    filesArray.push({
-      id: item._id,
-      userId: item.userId,
-      name: item.name,
-      type: item.type,
-      isPublic: item.isPublic,
-      parentId: item.parentId,
+    const filesArray = [];
+    await filesCursor.forEach((item) => {
+      filesArray.push({
+        id: item._id,
+        userId: item.userId,
+        name: item.name,
+        type: item.type,
+        isPublic: item.isPublic,
+        parentId: item.parentId,
+      });
     });
-  });
 
-  return res.send(filesArray);
+    return res.send(filesArray);
 }
-
+  
   static async putPublish(req, res) {
     const token = req.header('X-Token') || null;
     if (!token) return res.status(401).send({ error: 'Unauthorized' });
