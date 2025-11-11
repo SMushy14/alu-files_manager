@@ -1,1 +1,1 @@
-Files manager
+Files Manager
