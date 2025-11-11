@@ -138,18 +138,19 @@ class FilesController {
     .findOne({ _id: ObjectId(redisToken) });
   if (!user) return res.status(401).send({ error: 'Unauthorized' });
 
+  // parentId defaults to '0' (root) if missing
   const parentId = req.query.parentId || '0';
-  const page = Number(req.query.page) || 0;
+  const page = parseInt(req.query.page, 10) || 0;
 
   const matchQuery = { userId: user._id };
 
   if (parentId === '0') {
-    matchQuery.parentId = 0;
+    matchQuery.parentId = 0; // root files
   } else {
     try {
-      matchQuery.parentId = ObjectId(parentId);
+      matchQuery.parentId = ObjectId(parentId); // child folder
     } catch (err) {
-      return res.send([]); // ✅ expected by checker
+      return res.send([]); // invalid parentId
     }
   }
 
