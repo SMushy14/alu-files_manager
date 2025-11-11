@@ -138,24 +138,27 @@ class FilesController {
       .findOne({ _id: ObjectId(redisToken) });
     if (!user) return res.status(401).send({ error: 'Unauthorized' });
 
-    const parentId = req.query.parentId || 0;
-    // parentId = parentId === '0' ? 0 : parentId;
+    const parentId = req.query.parentId || '0';
+  const page = parseInt(req.query.page, 10) || 0;
 
-    const pagination = req.query.page || 0;
-    // pagination = Number.isNaN(pagination) ? 0 : pagination;
-    // pagination = pagination < 0 ? 0 : pagination;
+  let matchQuery = { userId: user._id };
 
-    const aggregationMatch = { $and: [{ parentId }] };
-    let aggregateData = [
-      { $match: aggregationMatch },
-      { $skip: pagination * 20 },
-      { $limit: 20 },
-    ];
-    if (parentId === 0) aggregateData = [{ $skip: pagination * 20 }, { $limit: 20 }];
+  if (parentId === '0') {
+    matchQuery.parentId = 0;
+  } else {
+    try {
+      matchQuery.parentId = ObjectId(parentId);
+    } catch (err) {
+      return res.status(400).send({ error: 'Invalid parentId' });
+    }
+  }
 
-    const files = await DBClient.db
-      .collection('files')
-      .aggregate(aggregateData);
+  const filesCursor = DBClient.db.collection('files').aggregate([
+    { $match: matchQuery },
+    { $skip: page * 20 },
+    { $limit: 20 },
+  ]);
+    
     const filesArray = [];
     await files.forEach((item) => {
       const fileItem = {
